@@ -7,3 +7,4 @@ alembic==1.15.2
 uvicorn==0.34.2
 PyJWT==2.10.1
 argon2-cffi==23.1.0
+oss2==2.19.1

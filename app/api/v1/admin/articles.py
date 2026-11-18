@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin
@@ -13,6 +13,7 @@ from app.modules.articles.schemas import (
     AdminArticleListResponse,
     ArticleCreateRequest,
     ArticleResponse,
+    ArticleUpdateRequest,
 )
 from app.modules.auth.models import AdminUser
 
@@ -55,3 +56,29 @@ def get_article(
 ) -> AdminArticleDetail:
     article = service.get_admin_article(db, article_id)
     return AdminArticleDetail.model_validate(article)
+
+
+@router.patch("/{article_id}", response_model=AdminArticleDetail, summary="修改文章")
+def update_article(
+    article_id: int,
+    data: ArticleUpdateRequest,
+    db: Session = Depends(get_db),
+    _admin: AdminUser = Depends(get_current_admin),
+) -> AdminArticleDetail:
+    article = service.update_article(db, article_id, data)
+    return AdminArticleDetail.model_validate(article)
+
+
+@router.delete(
+    "/{article_id}",
+    status_code=204,
+    response_class=Response,
+    summary="删除文章",
+)
+def delete_article(
+    article_id: int,
+    db: Session = Depends(get_db),
+    _admin: AdminUser = Depends(get_current_admin),
+) -> Response:
+    service.delete_article(db, article_id)
+    return Response(status_code=204)

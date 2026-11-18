@@ -4,7 +4,7 @@
 
 ## 技术栈
 
-FastAPI · Pydantic 2 · pydantic-settings · SQLAlchemy 2（同步）· MySQL 8 + PyMySQL · Alembic · PyJWT + Argon2 · Ruff · Pytest + HTTPX · Uvicorn
+FastAPI · Pydantic 2 · pydantic-settings · SQLAlchemy 2（同步）· MySQL 8 + PyMySQL · Alembic · PyJWT + Argon2 · 阿里云 OSS · Ruff · Pytest + HTTPX · Uvicorn
 
 > Python 要求 3.12+；当前本机暂用 3.10.4 开发（代码保持 3.10 兼容），升级后重建 venv 即可。
 
@@ -35,6 +35,19 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```sql
 CREATE DATABASE akil_blog DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
+
+### 图片上传 / 阿里云 OSS
+
+图片采用 Nuxt 前端直传 OSS：后端只签发短期预签名 PUT URL，不中转文件。
+将 `.env.example` 中的 `OSS_BUCKET`、`OSS_ENDPOINT`、`OSS_REGION`、
+`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`、`OSS_PUBLIC_BASE_URL` 填完整后，
+`POST /api/v1/admin/media/upload-signature` 才可用；缺失时返回 503，不会伪造成功。
+
+- AccessKey 只放后端环境变量，不能进入前端。
+- 建议使用最小权限 RAM 用户，仅授予 `OSS_UPLOAD_PREFIX` 前缀的 `PutObject`。
+- Bucket 不开放公共写权限；`OSS_PUBLIC_BASE_URL` 指向图片自定义域名/CDN。
+- OSS Bucket 需配置 CORS，允许前端域名的 `PUT`、`GET`、`HEAD`，允许
+  `Content-Type` 请求头，并暴露 `ETag`。详见 `API.md`。
 
 ## 启动
 
@@ -116,6 +129,7 @@ scripts/                     # 运维 / 工具脚本
 
 ## 当前状态
 
-已完成：工程基础设施、管理员登录认证（JWT + Argon2）、文章新增接口（草稿 / 发布）、
-管理端与公开端文章列表 / 详情查询。
-尚未开发：文章修改 / 删除 / 搜索、分类、标签、媒体上传。
+已完成：工程基础设施、管理员登录认证（JWT + Argon2）、文章新增 / 查询 / 修改 / 物理删除、
+管理端与公开端文章列表和详情、OSS 图片直传授权（Media 模块）。
+
+尚未开发：文章搜索、分类、标签、OSS 文件管理后台、孤立图片清理、服务器部署。

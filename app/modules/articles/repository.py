@@ -60,3 +60,7 @@ def list_published(db: Session, *, offset: int, limit: int) -> tuple[list[Articl
 def add(db: Session, article: Article) -> None:
     db.add(article)
     db.flush()
+
+
+def delete(db: Session, article: Article) -> None:
+    db.delete(article)
