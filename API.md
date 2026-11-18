@@ -104,7 +104,143 @@ slug 规则：
 - 时间字段为 UTC、ISO 8601 格式；MySQL DATETIME 不带时区后缀，前端按 UTC 解析。
 - 草稿响应中 `published_at` 为 `null`。
 
-## 3. 健康检查
+## 3. 管理端文章列表
+
+`GET /api/v1/admin/articles`（需要 Bearer 认证）
+
+查询参数：
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| page | integer | 否 | `1` | 页码，最小 `1` |
+| page_size | integer | 否 | `10` | 每页条数，范围 `1–100` |
+| status | string | 否 | 不筛选 | `"draft"` / `"published"`；其他值返回 422 |
+
+排序：`created_at` 倒序，同一时间按 `id` 倒序，保证分页结果稳定。
+
+成功 `200`：
+
+```json
+{
+  "items": [
+    {
+      "id": 3,
+      "title": "草稿示例",
+      "slug": "draft-example",
+      "summary": null,
+      "status": "draft",
+      "created_at": "2026-11-17T15:10:00",
+      "updated_at": "2026-11-17T15:10:00",
+      "published_at": null
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 10,
+  "total_pages": 1
+}
+```
+
+说明：
+
+- `items` 不包含 `content_markdown`，列表页不要依赖完整正文。
+- 传入超过末页的 `page` 时返回空 `items`，`total` 等分页元信息不变。
+- 无文章时 `total = 0`、`total_pages = 0`。
+
+## 4. 管理端文章详情
+
+`GET /api/v1/admin/articles/{id}`（需要 Bearer 认证）
+
+路径参数：`id` 为整数文章 ID。
+
+成功 `200`（草稿和已发布文章均可查看）：
+
+```json
+{
+  "id": 3,
+  "title": "草稿示例",
+  "slug": "draft-example",
+  "summary": null,
+  "status": "draft",
+  "created_at": "2026-11-17T15:10:00",
+  "updated_at": "2026-11-17T15:10:00",
+  "published_at": null,
+  "content_markdown": "# 标题\n\nMarkdown 原文"
+}
+```
+
+文章不存在 `404`：
+
+```json
+{ "detail": "文章不存在" }
+```
+
+## 5. 公开文章列表
+
+`GET /api/v1/articles`（无需认证）
+
+查询参数：
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| page | integer | 否 | `1` | 页码，最小 `1` |
+| page_size | integer | 否 | `10` | 每页条数，范围 `1–100` |
+
+- 仅返回 `status = "published"` 的文章，草稿不会出现在结果中。
+- 排序：`published_at` 倒序，同一时间按 `id` 倒序。
+- 响应结构与管理端列表一致，但 `items` 使用公开端字段。
+
+成功 `200`：
+
+```json
+{
+  "items": [
+    {
+      "id": 2,
+      "title": "已发布示例",
+      "slug": "published-example",
+      "summary": "摘要",
+      "published_at": "2026-11-17T15:00:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 10,
+  "total_pages": 1
+}
+```
+
+说明：列表不返回 `content_markdown`、`status`、`created_at`、`updated_at`。
+
+## 6. 公开文章详情
+
+`GET /api/v1/articles/{slug}`（无需认证）
+
+路径参数：`slug` 为文章唯一 slug。
+
+- 只允许访问已发布文章；草稿、未知 slug 均返回相同 `404`，不泄露草稿是否存在。
+- 成功 `200` 返回渲染所需的完整 Markdown 原文。
+
+```json
+{
+  "id": 2,
+  "title": "已发布示例",
+  "slug": "published-example",
+  "summary": "摘要",
+  "published_at": "2026-11-17T15:00:00",
+  "content_markdown": "# 标题\n\n正文 Markdown 原文",
+  "created_at": "2026-11-17T14:58:07",
+  "updated_at": "2026-11-17T15:00:00"
+}
+```
+
+不存在或未发布 `404`：
+
+```json
+{ "detail": "文章不存在" }
+```
+
+## 7. 健康检查
 
 `GET /api/v1/health`（无需认证，不依赖数据库）
 
@@ -117,12 +253,13 @@ slug 规则：
 | HTTP | 场景 | 响应体 |
 |---|---|---|
 | 401 | 未携带 token / token 无效或过期 / 登录失败 | `{ "detail": "错误说明" }`，带 `WWW-Authenticate: Bearer` 头 |
+| 404 | 管理端文章 ID 不存在 / 公开端 slug 不存在或文章未发布 | `{ "detail": "文章不存在" }` |
 | 409 | slug 已存在 | `{ "detail": "slug 已存在: xxx" }` |
 | 422 | 业务校验失败（发布空正文、空白标题、slug 格式非法） | `{ "detail": "错误说明" }` |
-| 422 | 请求体字段校验失败（缺字段、超长、status 非法值等，FastAPI 标准格式） | `{ "detail": [{ "loc": ["body", "title"], "msg": "...", "type": "..." }] }` |
+| 422 | 请求体或查询参数校验失败（缺字段、超长、status 非法、page/page_size 越界等，FastAPI 标准格式） | `{ "detail": [{ "loc": ["body", "title"], "msg": "...", "type": "..." }] }` |
 
 前端注意：422 存在两种响应体结构（字符串 detail 与数组 detail），建议统一容错处理。
 
 ## 本次未提供
 
-文章修改 / 删除 / 列表 / 详情查询、分类、标签、媒体上传、公开端文章接口。
+文章修改 / 删除 / 搜索、分类、标签、媒体上传。

@@ -24,3 +24,52 @@ class ArticleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     published_at: datetime | None
+
+
+class AdminArticleListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    slug: str
+    summary: str | None
+    status: ArticleStatus
+    created_at: datetime
+    updated_at: datetime
+    published_at: datetime | None
+
+
+class AdminArticleDetail(AdminArticleListItem):
+    content_markdown: str
+
+
+class PublicArticleListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    slug: str
+    summary: str | None
+    published_at: datetime | None
+
+
+class PublicArticleDetail(PublicArticleListItem):
+    content_markdown: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminArticleListResponse(BaseModel):
+    items: list[AdminArticleListItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class PublicArticleListResponse(BaseModel):
+    items: list[PublicArticleListItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
