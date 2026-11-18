@@ -26,17 +26,8 @@ class ArticleResponse(BaseModel):
     published_at: datetime | None
 
 
-class AdminArticleListItem(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    title: str
-    slug: str
-    summary: str | None
-    status: ArticleStatus
-    created_at: datetime
-    updated_at: datetime
-    published_at: datetime | None
+# 管理端列表项与创建响应字段一致，直接复用
+AdminArticleListItem = ArticleResponse
 
 
 class AdminArticleDetail(AdminArticleListItem):

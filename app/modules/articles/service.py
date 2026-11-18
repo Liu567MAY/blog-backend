@@ -92,10 +92,6 @@ def create_article(db: Session, data: ArticleCreateRequest) -> Article:
     return article
 
 
-def _paginate(items: list[Article], total: int, *, page: int, page_size: int) -> ArticlePage:
-    return ArticlePage(items=items, total=total, page=page, page_size=page_size)
-
-
 def list_admin_articles(
     db: Session,
     *,
@@ -106,7 +102,7 @@ def list_admin_articles(
     """管理端列表：包含草稿和已发布文章，按创建时间倒序。"""
     offset = (page - 1) * page_size
     items, total = repository.list_for_admin(db, offset=offset, limit=page_size, status=status)
-    return _paginate(items, total, page=page, page_size=page_size)
+    return ArticlePage(items=items, total=total, page=page, page_size=page_size)
 
 
 def get_admin_article(db: Session, article_id: int) -> Article:
@@ -126,7 +122,7 @@ def list_public_articles(
     """公开端列表：仅返回已发布文章，按发布时间倒序。"""
     offset = (page - 1) * page_size
     items, total = repository.list_published(db, offset=offset, limit=page_size)
-    return _paginate(items, total, page=page, page_size=page_size)
+    return ArticlePage(items=items, total=total, page=page, page_size=page_size)
 
 
 def get_public_article(db: Session, slug: str) -> Article:

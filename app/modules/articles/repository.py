@@ -1,5 +1,6 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.modules.articles.models import Article, ArticleStatus
 
@@ -28,7 +29,7 @@ def list_for_admin(
     limit: int,
     status: ArticleStatus | None = None,
 ) -> tuple[list[Article], int]:
-    filters = []
+    filters: list[ColumnElement[bool]] = []
     if status is not None:
         filters.append(Article.status == status)
 

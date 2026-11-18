@@ -1,24 +1,9 @@
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.core.security import hash_password
 from app.modules.articles.models import Article
-from app.modules.auth.models import AdminUser
 
 ARTICLES_URL = "/api/v1/admin/articles"
-
-
-@pytest.fixture
-def auth_headers(client: TestClient, db_session: Session) -> dict[str, str]:
-    admin = AdminUser(username="admin", password_hash=hash_password("s3cret-pass"))
-    db_session.add(admin)
-    db_session.commit()
-    response = client.post(
-        "/api/v1/admin/auth/login", json={"username": "admin", "password": "s3cret-pass"}
-    )
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
 
 
 def test_create_requires_auth(client: TestClient) -> None:

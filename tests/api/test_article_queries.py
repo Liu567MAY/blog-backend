@@ -4,9 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.core.security import hash_password
 from app.modules.articles.models import Article, ArticleStatus
-from app.modules.auth.models import AdminUser
 
 ADMIN_LIST_URL = "/api/v1/admin/articles"
 PUBLIC_LIST_URL = "/api/v1/articles"
@@ -32,17 +30,6 @@ def _article(
         updated_at=created_at,
         published_at=published_at,
     )
-
-
-@pytest.fixture
-def auth_headers(client: TestClient, db_session: Session) -> dict[str, str]:
-    admin = AdminUser(username="admin", password_hash=hash_password("s3cret-pass"))
-    db_session.add(admin)
-    db_session.commit()
-    response = client.post(
-        "/api/v1/admin/auth/login", json={"username": "admin", "password": "s3cret-pass"}
-    )
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 @pytest.fixture
