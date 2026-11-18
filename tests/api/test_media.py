@@ -77,7 +77,16 @@ def test_upload_signature_rejects_oversized_image(
 def test_upload_signature_reports_missing_oss_config(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
-    app.dependency_overrides[get_settings] = lambda: Settings(jwt_secret_key="test-secret-key")
+    # 显式置空 OSS 字段：Settings 会回退读取 .env/环境变量，不置空则“缺配置”场景不成立
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        jwt_secret_key="test-secret-key",
+        oss_bucket=None,
+        oss_endpoint=None,
+        oss_region=None,
+        oss_access_key_id=None,
+        oss_access_key_secret=None,
+        oss_public_base_url=None,
+    )
 
     response = client.post(
         MEDIA_URL,
