@@ -13,6 +13,14 @@ class ArticleCreateRequest(BaseModel):
     status: ArticleStatus = ArticleStatus.DRAFT
 
 
+class ArticleUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    slug: str | None = Field(default=None, max_length=200)
+    summary: str | None = Field(default=None, max_length=500)
+    content_markdown: str | None = None
+    status: ArticleStatus | None = None
+
+
 class ArticleResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

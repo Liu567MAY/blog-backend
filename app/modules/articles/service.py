@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.modules.articles import repository
 from app.modules.articles.models import Article, ArticleStatus
-from app.modules.articles.schemas import ArticleCreateRequest
+from app.modules.articles.schemas import ArticleCreateRequest, ArticleUpdateRequest
 
 _SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _MAX_SLUG_LENGTH = 200
@@ -52,12 +52,17 @@ def _generate_unique_slug(db: Session, title: str) -> str:
     return slug
 
 
+def _normalize_manual_slug(slug: str) -> str:
+    normalized = slug.strip().lower()
+    if not _SLUG_PATTERN.match(normalized) or len(normalized) > _MAX_SLUG_LENGTH:
+        raise ValidationError("slug 只能包含小写字母、数字和连字符，且不能以连字符开头或结尾")
+    return normalized
+
+
 def _resolve_slug(db: Session, title: str, manual_slug: str | None) -> str:
     if manual_slug is None:
         return _generate_unique_slug(db, title)
-    slug = manual_slug.strip().lower()
-    if not _SLUG_PATTERN.match(slug) or len(slug) > _MAX_SLUG_LENGTH:
-        raise ValidationError("slug 只能包含小写字母、数字和连字符，且不能以连字符开头或结尾")
+    slug = _normalize_manual_slug(manual_slug)
     if repository.get_by_slug(db, slug) is not None:
         raise ConflictError(f"slug 已存在: {slug}")
     return slug
@@ -131,3 +136,81 @@ def get_public_article(db: Session, slug: str) -> Article:
     if article is None:
         raise NotFoundError("文章不存在")
     return article
+
+
+def update_article(db: Session, article_id: int, data: ArticleUpdateRequest) -> Article:
+    """部分更新文章，事务由本层统一控制。"""
+    article = repository.get_by_id(db, article_id)
+    if article is None:
+        raise NotFoundError("文章不存在")
+
+    provided = data.model_fields_set
+    if not provided:
+        raise ValidationError("至少提供一个需要修改的字段")
+
+    title = article.title
+    if "title" in provided:
+        if data.title is None:
+            raise ValidationError("标题不能为空")
+        title = data.title.strip()
+        if not title:
+            raise ValidationError("标题不能为空")
+
+    content_markdown = article.content_markdown
+    if "content_markdown" in provided:
+        if data.content_markdown is None:
+            raise ValidationError("正文不能为 null")
+        content_markdown = data.content_markdown
+
+    status = article.status
+    if "status" in provided:
+        if data.status is None:
+            raise ValidationError("状态不能为 null")
+        status = data.status
+    if status is ArticleStatus.PUBLISHED and not content_markdown.strip():
+        raise ValidationError("发布文章必须包含非空正文")
+
+    slug = article.slug
+    if "slug" in provided:
+        if data.slug is None:
+            raise ValidationError("slug 不能为 null")
+        slug = _normalize_manual_slug(data.slug)
+        existing = repository.get_by_slug(db, slug)
+        if existing is not None and existing.id != article.id:
+            raise ConflictError(f"slug 已存在: {slug}")
+
+    summary = article.summary
+    if "summary" in provided:
+        summary = data.summary
+
+    now = datetime.now(timezone.utc)
+    was_published = article.status is ArticleStatus.PUBLISHED
+    article.title = title
+    article.slug = slug
+    article.summary = summary
+    article.content_markdown = content_markdown
+    article.status = status
+    if status is ArticleStatus.PUBLISHED:
+        if not was_published or article.published_at is None:
+            article.published_at = now
+    else:
+        article.published_at = None
+    article.updated_at = now
+
+    try:
+        db.commit()
+    except IntegrityError:
+        # 并发更新为同一 slug 时由唯一约束兜底
+        db.rollback()
+        raise ConflictError(f"slug 已存在: {slug}") from None
+    db.refresh(article)
+    return article
+
+
+def delete_article(db: Session, article_id: int) -> None:
+    """物理删除文章，事务由本层统一控制。"""
+    article = repository.get_by_id(db, article_id)
+    if article is None:
+        raise NotFoundError("文章不存在")
+    repository.delete(db, article)
+    db.commit()

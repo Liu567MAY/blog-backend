@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +20,17 @@ class Settings(BaseSettings):
     # 仅供管理员初始化脚本非交互模式使用，可选
     admin_username: str | None = None
     admin_password: str | None = None
+
+    # 阿里云 OSS：缺省为空，未配置时上传授权接口明确返回 503，不伪造成功
+    oss_bucket: str | None = None
+    oss_endpoint: str | None = None
+    oss_region: str | None = None
+    oss_access_key_id: str | None = None
+    oss_access_key_secret: str | None = None
+    oss_public_base_url: str | None = None
+    oss_upload_expire_seconds: int = Field(default=300, ge=60, le=3600)
+    oss_max_image_size_bytes: int = Field(default=10 * 1024 * 1024, ge=1)
+    oss_upload_prefix: str = "articles"
 
     model_config = SettingsConfigDict(
         env_file=".env",
