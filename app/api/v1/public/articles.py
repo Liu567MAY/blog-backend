@@ -19,8 +19,18 @@ def list_articles(
     db: Session = Depends(get_db),
     page: Annotated[int, Query(ge=1)] = service.DEFAULT_PAGE,
     page_size: Annotated[int, Query(ge=1, le=service.MAX_PAGE_SIZE)] = service.DEFAULT_PAGE_SIZE,
+    keyword: Annotated[str | None, Query(max_length=200)] = None,
+    category: Annotated[str | None, Query(max_length=200)] = None,
+    tag: Annotated[str | None, Query(max_length=200)] = None,
 ) -> PublicArticleListResponse:
-    result = service.list_public_articles(db, page=page, page_size=page_size)
+    result = service.list_public_articles(
+        db,
+        page=page,
+        page_size=page_size,
+        keyword=keyword,
+        category=category,
+        tag=tag,
+    )
     return PublicArticleListResponse(
         items=[PublicArticleListItem.model_validate(article) for article in result.items],
         total=result.total,

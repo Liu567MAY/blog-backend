@@ -1,8 +1,12 @@
 from datetime import datetime
+from typing import Annotated
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.articles.models import ArticleStatus
+from app.modules.categories.schemas import CategoryBrief
+from app.modules.tags.schemas import TagBrief
 
 
 class ArticleCreateRequest(BaseModel):
@@ -11,6 +15,9 @@ class ArticleCreateRequest(BaseModel):
     summary: str | None = Field(default=None, max_length=500)
     content_markdown: str = ""
     status: ArticleStatus = ArticleStatus.DRAFT
+    category_id: Annotated[int, Field(ge=1)] | None = None
+    tag_ids: list[Annotated[int, Field(ge=1)]] | None = None
+    autosave_id: UUID | None = None
 
 
 class ArticleUpdateRequest(BaseModel):
@@ -19,6 +26,9 @@ class ArticleUpdateRequest(BaseModel):
     summary: str | None = Field(default=None, max_length=500)
     content_markdown: str | None = None
     status: ArticleStatus | None = None
+    category_id: Annotated[int, Field(ge=1)] | None = None
+    tag_ids: list[Annotated[int, Field(ge=1)]] | None = None
+    autosave_id: UUID | None = None
 
 
 class ArticleResponse(BaseModel):
@@ -40,6 +50,8 @@ AdminArticleListItem = ArticleResponse
 
 class AdminArticleDetail(AdminArticleListItem):
     content_markdown: str
+    category: CategoryBrief | None
+    tags: list[TagBrief]
 
 
 class PublicArticleListItem(BaseModel):
@@ -56,6 +68,8 @@ class PublicArticleDetail(PublicArticleListItem):
     content_markdown: str
     created_at: datetime
     updated_at: datetime
+    category: CategoryBrief | None
+    tags: list[TagBrief]
 
 
 class AdminArticleListResponse(BaseModel):

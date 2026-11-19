@@ -24,9 +24,9 @@ router = APIRouter()
 def create_article(
     data: ArticleCreateRequest,
     db: Session = Depends(get_db),
-    _admin: AdminUser = Depends(get_current_admin),
+    admin: AdminUser = Depends(get_current_admin),
 ) -> ArticleResponse:
-    article = service.create_article(db, data)
+    article = service.create_article(db, data, admin_id=admin.id)
     return ArticleResponse.model_validate(article)
 
 
@@ -37,8 +37,19 @@ def list_articles(
     page: Annotated[int, Query(ge=1)] = service.DEFAULT_PAGE,
     page_size: Annotated[int, Query(ge=1, le=service.MAX_PAGE_SIZE)] = service.DEFAULT_PAGE_SIZE,
     status: Annotated[ArticleStatus | None, Query()] = None,
+    keyword: Annotated[str | None, Query(max_length=200)] = None,
+    category_id: Annotated[int | None, Query(ge=1)] = None,
+    tag_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> AdminArticleListResponse:
-    result = service.list_admin_articles(db, page=page, page_size=page_size, status=status)
+    result = service.list_admin_articles(
+        db,
+        page=page,
+        page_size=page_size,
+        status=status,
+        keyword=keyword,
+        category_id=category_id,
+        tag_id=tag_id,
+    )
     return AdminArticleListResponse(
         items=[AdminArticleListItem.model_validate(article) for article in result.items],
         total=result.total,
@@ -63,9 +74,9 @@ def update_article(
     article_id: int,
     data: ArticleUpdateRequest,
     db: Session = Depends(get_db),
-    _admin: AdminUser = Depends(get_current_admin),
+    admin: AdminUser = Depends(get_current_admin),
 ) -> AdminArticleDetail:
-    article = service.update_article(db, article_id, data)
+    article = service.update_article(db, article_id, data, admin_id=admin.id)
     return AdminArticleDetail.model_validate(article)
 
 

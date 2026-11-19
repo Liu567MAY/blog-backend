@@ -101,6 +101,16 @@ curl -X POST http://127.0.0.1:8000/api/v1/admin/articles \
 
 `status` 为 `draft`（默认，允许空正文）或 `published`（要求非空正文）；
 `slug` 可省略，自动从标题生成（纯中文标题用哈希兜底），重复时自动加序号。
+可选 `category_id` 和 `tag_ids` 关联主分类与多个标签。
+
+分类、标签与搜索：
+
+- 管理端：`/api/v1/admin/categories`、`/api/v1/admin/tags` 提供 CRUD。
+- 公开端：`/api/v1/categories`、`/api/v1/tags` 只返回已发布文章使用中的分类/标签及文章数。
+- 公开文章列表支持 `keyword`、`category`、`tag` 组合筛选；管后台列表支持
+  `keyword`、`status`、`category_id`、`tag_id`。第一版使用 MySQL `LIKE`，暂不引入全文索引。
+- 自动保存使用独立 `article_autosave` 快照，支持 revision 并发控制与草稿恢复；
+  正式创建/修改文章时可携带 `autosave_id`，成功后在同一事务内清理快照。
 
 ## 代码检查与测试
 
@@ -130,6 +140,9 @@ scripts/                     # 运维 / 工具脚本
 ## 当前状态
 
 已完成：工程基础设施、管理员登录认证（JWT + Argon2）、文章新增 / 查询 / 修改 / 物理删除、
-管理端与公开端文章列表和详情、OSS 图片直传授权（Media 模块）。
+分类与标签 CRUD、文章分类/标签关联、关键词与分类/标签组合搜索、
+管理端与公开端文章列表和详情、OSS 图片直传授权（Media 模块）、
+自动保存快照与草稿恢复（revision 并发控制）。
 
-尚未开发：文章搜索、分类、标签、OSS 文件管理后台、孤立图片清理、服务器部署。
+尚未开发：多级分类、Elasticsearch / 搜索推荐、全文索引优化、评论、阅读统计、
+OSS 文件管理后台、孤立图片清理、服务器部署；自动保存不提供历史版本、定时任务或回收站。

@@ -9,6 +9,9 @@ from app.infrastructure.database.base import Base
 # 业务模块 models 在此导入，使 autogenerate 能发现表结构变更
 from app.modules.articles import models as article_models  # noqa: F401
 from app.modules.auth import models as auth_models  # noqa: F401
+from app.modules.autosaves import models as autosave_models  # noqa: F401
+from app.modules.categories import models as category_models  # noqa: F401
+from app.modules.tags import models as tag_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

@@ -17,6 +17,9 @@ from app.main import app  # noqa: E402
 from app.modules.articles import models as article_models  # noqa: F401, E402
 from app.modules.auth import models as auth_models  # noqa: F401, E402
 from app.modules.auth.models import AdminUser  # noqa: E402
+from app.modules.autosaves import models as autosave_models  # noqa: F401, E402
+from app.modules.categories import models as category_models  # noqa: F401, E402
+from app.modules.tags import models as tag_models  # noqa: F401, E402
 
 # 测试专用 sqlite 内存库；生产表结构一律由 Alembic 管理
 

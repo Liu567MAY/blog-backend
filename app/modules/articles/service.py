@@ -10,6 +10,9 @@ from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.modules.articles import repository
 from app.modules.articles.models import Article, ArticleStatus
 from app.modules.articles.schemas import ArticleCreateRequest, ArticleUpdateRequest
+from app.modules.autosaves import service as autosave_service
+from app.modules.categories import service as category_service
+from app.modules.tags import service as tag_service
 
 _SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _MAX_SLUG_LENGTH = 200
@@ -68,7 +71,12 @@ def _resolve_slug(db: Session, title: str, manual_slug: str | None) -> str:
     return slug
 
 
-def create_article(db: Session, data: ArticleCreateRequest) -> Article:
+def create_article(
+    db: Session,
+    data: ArticleCreateRequest,
+    *,
+    admin_id: int | None = None,
+) -> Article:
     """新增文章，事务由本层统一控制。"""
     title = data.title.strip()
     if not title:
@@ -77,6 +85,11 @@ def create_article(db: Session, data: ArticleCreateRequest) -> Article:
         raise ValidationError("发布文章必须包含非空正文")
 
     slug = _resolve_slug(db, title, data.slug)
+    category = None
+    if data.category_id is not None:
+        category = category_service.get_category_for_article(db, data.category_id)
+    tags = tag_service.get_tags_for_article(db, data.tag_ids or [])
+
     now = datetime.now(timezone.utc)
     article = Article(
         title=title,
@@ -85,8 +98,11 @@ def create_article(db: Session, data: ArticleCreateRequest) -> Article:
         content_markdown=data.content_markdown,
         status=data.status,
         published_at=now if data.status is ArticleStatus.PUBLISHED else None,
+        category=category,
+        tags=tags,
     )
     repository.add(db, article)
+    autosave_service.cleanup_for_article_write(db, data.autosave_id, admin_id)
     try:
         db.commit()
     except IntegrityError:
@@ -103,10 +119,22 @@ def list_admin_articles(
     page: int = DEFAULT_PAGE,
     page_size: int = DEFAULT_PAGE_SIZE,
     status: ArticleStatus | None = None,
+    keyword: str | None = None,
+    category_id: int | None = None,
+    tag_id: int | None = None,
 ) -> ArticlePage:
-    """管理端列表：包含草稿和已发布文章，按创建时间倒序。"""
+    """管理端列表：包含草稿和已发布文章，支持关键词与分类/标签筛选。"""
+    normalized_keyword = keyword.strip() if keyword else None
     offset = (page - 1) * page_size
-    items, total = repository.list_for_admin(db, offset=offset, limit=page_size, status=status)
+    items, total = repository.list_for_admin(
+        db,
+        offset=offset,
+        limit=page_size,
+        status=status,
+        keyword=normalized_keyword or None,
+        category_id=category_id,
+        tag_id=tag_id,
+    )
     return ArticlePage(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -123,10 +151,23 @@ def list_public_articles(
     *,
     page: int = DEFAULT_PAGE,
     page_size: int = DEFAULT_PAGE_SIZE,
+    keyword: str | None = None,
+    category: str | None = None,
+    tag: str | None = None,
 ) -> ArticlePage:
-    """公开端列表：仅返回已发布文章，按发布时间倒序。"""
+    """公开端列表：仅返回已发布文章，支持关键词、分类和标签组合筛选。"""
+    normalized_keyword = keyword.strip() if keyword else None
+    normalized_category = category.strip() if category else None
+    normalized_tag = tag.strip() if tag else None
     offset = (page - 1) * page_size
-    items, total = repository.list_published(db, offset=offset, limit=page_size)
+    items, total = repository.list_published(
+        db,
+        offset=offset,
+        limit=page_size,
+        keyword=normalized_keyword or None,
+        category_slug=normalized_category or None,
+        tag_slug=normalized_tag or None,
+    )
     return ArticlePage(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -138,7 +179,13 @@ def get_public_article(db: Session, slug: str) -> Article:
     return article
 
 
-def update_article(db: Session, article_id: int, data: ArticleUpdateRequest) -> Article:
+def update_article(
+    db: Session,
+    article_id: int,
+    data: ArticleUpdateRequest,
+    *,
+    admin_id: int | None = None,
+) -> Article:
     """部分更新文章，事务由本层统一控制。"""
     article = repository.get_by_id(db, article_id)
     if article is None:
@@ -183,6 +230,19 @@ def update_article(db: Session, article_id: int, data: ArticleUpdateRequest) -> 
     if "summary" in provided:
         summary = data.summary
 
+    category = article.category
+    if "category_id" in provided:
+        if data.category_id is None:
+            category = None
+        else:
+            category = category_service.get_category_for_article(db, data.category_id)
+
+    tags = list(article.tags)
+    if "tag_ids" in provided:
+        if data.tag_ids is None:
+            raise ValidationError("tag_ids 不能为 null；清空标签请传空数组")
+        tags = tag_service.get_tags_for_article(db, data.tag_ids)
+
     now = datetime.now(timezone.utc)
     was_published = article.status is ArticleStatus.PUBLISHED
     article.title = title
@@ -190,12 +250,15 @@ def update_article(db: Session, article_id: int, data: ArticleUpdateRequest) -> 
     article.summary = summary
     article.content_markdown = content_markdown
     article.status = status
+    article.category = category
+    article.tags = tags
     if status is ArticleStatus.PUBLISHED:
         if not was_published or article.published_at is None:
             article.published_at = now
     else:
         article.published_at = None
     article.updated_at = now
+    autosave_service.cleanup_for_article_write(db, data.autosave_id, admin_id)
 
     try:
         db.commit()
@@ -212,5 +275,6 @@ def delete_article(db: Session, article_id: int) -> None:
     article = repository.get_by_id(db, article_id)
     if article is None:
         raise NotFoundError("文章不存在")
+    autosave_service.delete_for_article(db, article.id)
     repository.delete(db, article)
     db.commit()
